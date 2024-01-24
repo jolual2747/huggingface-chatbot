@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "huggingface-chatbot"
+version = "0.1.0"
+description = "Hugging-Face chatbot with RAG and OpenAI models"
+authors = ["Jose Alcocer <jolual2747@gmail.com>"]
+license = "Apache 2.0"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8.1"
+openai = "^1.9.0"
+langchain = "^0.1.2"
+emoji = "^2.10.0"
+termcolor = "^2.4.0"
+jsonlines = "^4.0.0"
+langchain-openai = "^0.0.3"
+chromadb = "0.3.29"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
