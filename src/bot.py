@@ -8,11 +8,8 @@ from utils import DocsJSONLLoader, get_openai_api_key, get_file_path
 from typing import List, Any
 from langchain.schema import Document
 from langchain_core.vectorstores import VectorStoreRetriever
-from langchain.memory import ChatMessageHistory
-from langchain.schema import(
-    HumanMessage,
-    AIMessage
-)
+from langchain.memory import ChatMessageHistory, ConversationBufferMemory
+from langchain.chains import LLMChain
 
 def load_documents(file_path: str):
     loader = DocsJSONLLoader(file_path)
@@ -43,23 +40,33 @@ def get_chroma_db(embeddings: OpenAIEmbeddings, documents: List[Document], path:
 def run_query(query: str, retriever: VectorStoreRetriever, llm: Any, message_history: Any):
 
     llm_summarizer = OpenAI(
-        model_name = "gpt-3.5-turbo",
+        model_name = "gpt-3.5-turbo-instruct",
         temperature = 0.2,
         max_tokens = 256
     )
-    # template = """You are a helpful assistant created to summarize conversations."""
-    # prompt_template = PromptTemplate()
+    template = """You are a helpful assistant created to summarize conversations. Following there is a conversation, you have to summarize it in Spanish.
+    Conversation: {messages}
 
+    Summary:
+    """
+    prompt_template = PromptTemplate(template=template, input_variables=["messages"])
+    summarizer_chain = LLMChain(llm=llm_summarizer, prompt=prompt_template)
+    if len(message_history.messages) > 0: 
+        buffer_memory = ConversationBufferMemory(chat_memory=message_history)
+        conversation_summary = summarizer_chain.predict(messages = buffer_memory.buffer)
+    else:
+        conversation_summary = ''
+    
     conversation = ConversationalRetrievalChain.from_llm(
         llm = llm,
         retriever = retriever,
         verbose=True
     )
 
-    results = conversation({"question": query, "chat_history":message_history.messages})
+    results = conversation({"question": query, "chat_history":[("summary", conversation_summary)]})
     message_history.add_user_message(message = query)
     message_history.add_ai_message(message=results["answer"])
-    print(results)
+    print(conversation_summary)
     print(message_history)
     return results["answer"]
 
