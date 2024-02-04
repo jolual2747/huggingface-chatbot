@@ -15,6 +15,7 @@ termcolor = "^2.4.0"
 jsonlines = "^4.0.0"
 langchain-openai = "^0.0.3"
 chromadb = "0.3.29"
+ipykernel = "^6.29.0"
 
 
 [build-system]

@@ -8,10 +8,11 @@ from utils import DocsJSONLLoader, get_openai_api_key, get_file_path
 from typing import List, Any
 from langchain.schema import Document
 from langchain_core.vectorstores import VectorStoreRetriever
-from langchain.memory import ChatMessageHistory, ConversationBufferMemory
+from langchain.memory import ChatMessageHistory, ConversationBufferWindowMemory
 from langchain.chains import LLMChain
 
 def load_documents(file_path: str):
+    """Loads documents from a path and split them."""
     loader = DocsJSONLLoader(file_path)
     documents = loader.load()
 
@@ -20,10 +21,10 @@ def load_documents(file_path: str):
         length_function = len,
         chunk_overlap = 160
     )
-
     return text_splitter.split_documents(documents)
 
 def get_chroma_db(embeddings: OpenAIEmbeddings, documents: List[Document], path: str, use_persist_directory=True):
+    """Returns a Chroma db created from scratch or from persist directory."""
     if use_persist_directory:
         return Chroma(
             persist_directory=path,
@@ -38,37 +39,19 @@ def get_chroma_db(embeddings: OpenAIEmbeddings, documents: List[Document], path:
 
 
 def run_query(query: str, retriever: VectorStoreRetriever, llm: Any, message_history: Any):
-
-    llm_summarizer = OpenAI(
-        model_name = "gpt-3.5-turbo-instruct",
-        temperature = 0.2,
-        max_tokens = 256
-    )
-    template = """You are a helpful assistant created to summarize conversations. Following there is a conversation, you have to summarize it in Spanish.
-    Conversation: {messages}
-
-    Summary:
-    """
-    prompt_template = PromptTemplate(template=template, input_variables=["messages"])
-    summarizer_chain = LLMChain(llm=llm_summarizer, prompt=prompt_template)
-    if len(message_history.messages) > 0: 
-        buffer_memory = ConversationBufferMemory(chat_memory=message_history)
-        conversation_summary = summarizer_chain.predict(messages = buffer_memory.buffer)
-    else:
-        conversation_summary = ''
-    
+    """Performs a query based on a messages history and a base knowledge embedded in 
+    a Vector Store."""
     conversation = ConversationalRetrievalChain.from_llm(
         llm = llm,
         retriever = retriever,
-        verbose=True
+        verbose=True,
+        get_chat_history=lambda h : h
     )
 
-    results = conversation({"question": query, "chat_history":[("summary", conversation_summary)]})
+    results = conversation.invoke({"question":query, "chat_history":message_history})
     message_history.add_user_message(message = query)
     message_history.add_ai_message(message=results["answer"])
-    print(conversation_summary)
-    print(message_history)
-    return results["answer"]
+    return results["answer"], message_history
 
 def main():
     documents = load_documents(get_file_path())
@@ -89,8 +72,15 @@ def main():
     )
 
     message_history = ChatMessageHistory()
-    response = run_query(query = input("Ingresa una pregunta: "), retriever=retriever, llm= llm, message_history=message_history)
-    print(response)
+    while True:
+        response, message_history = run_query(
+            query = input("Ingresa una pregunta: "), 
+            retriever=retriever, 
+            llm= llm, 
+            message_history=message_history
+        )
+        
+        print(response)
 
 if __name__ == '__main__':
     main()
